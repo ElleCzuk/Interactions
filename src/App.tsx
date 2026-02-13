@@ -1,0 +1,123 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { db } from './firebase'; 
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+
+const DATA = {
+  negativo: { emociones: ['Frustrada', 'Triste', 'Enojada', 'Ansiosa', 'Sola', 'Cansada'], habitos: ['Comida compulsiva', 'Gasto innecesario', 'Aislamiento', 'Scroll infinito', 'Procrastinar'] },
+  positivo: { emociones: ['Paz', 'Energía', 'Motivación', 'Amada', 'Tranquila', 'Inspirada'], habitos: ['Hice ejercicio', 'Comí sano', 'Avancé en mis proyectos', 'Medité', 'Dormí bien'] }
+};
+
+export default function App() {
+  const [people, setPeople] = useState([]); 
+  const [control, setControl] = useState(100);
+  const [modal, setModal] = useState<{idx: number, type: 'positivo' | 'negativo'} | null>(null);
+  const [detailModal, setDetailModal] = useState<number | null>(null);
+  const [temp, setTemp] = useState({ emocion: '', habito: '' });
+  const [newName, setNewName] = useState('');
+
+  useEffect(() => {
+    if (people.length === 0) return;
+    const timer = setTimeout(async () => {
+      try {
+        await addDoc(collection(db, "registros_continuos"), { 
+          fecha: serverTimestamp(), 
+          nivelControl: control, 
+          vinculos: people 
+        });
+      } catch (e) { console.error("Autosave error", e); }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [people, control]);
+
+  const confirmRegistration = () => {
+    if (modal !== null && temp.emocion && temp.habito) {
+      const up = [...people];
+      up[modal.idx].history.push({ type: modal.type, ...temp, timestamp: new Date().toISOString() });
+      setPeople(up);
+      setControl(p => modal.type === 'negativo' ? Math.max(0, p - 8) : Math.min(100, p + 4));
+      setModal(null); setTemp({ emocion: '', habito: '' });
+    }
+  };
+
+  return (
+    <div className="app-container">
+      <h1 className="main-title">Interactions</h1>
+
+      <div className="stability-box">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 400, opacity: 0.5, letterSpacing: '1px' }}>ESTABILIDAD</span>
+          <span style={{ fontSize: '1.2rem', fontWeight: 300 }}>{control}%</span>
+        </div>
+        <div className="bar-track">
+          <motion.div className="bar-fill" animate={{ width: `${control}%` }} transition={{ type: 'spring', stiffness: 45 }} />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gap: '6px' }}>
+        {people.map((person, idx) => (
+          <div key={idx} className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 15px' }}>
+            <div onClick={() => setDetailModal(idx)} style={{ flex: 1, cursor: 'pointer' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 400 }}>{person.name}</span>
+              <p style={{ fontSize: '0.45rem', opacity: 0.3, margin: 0 }}>ver mapa →</p>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setModal({idx, type: 'negativo'})} style={btnSimsNeg}>-</button>
+              <button onClick={() => setModal({idx, type: 'positivo'})} style={btnSimsPos}>+</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <AnimatePresence>
+        {detailModal !== null && (
+          <div className="modal-overlay">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card" style={{ maxWidth: '350px', background: '#070708', width: '90%' }}>
+              <h2 style={{ fontSize: '1.1rem', marginBottom: '5px', fontWeight: 300 }}>{people[detailModal].name}</h2>
+              <div className="history-grid">
+                {people[detailModal].history.length > 0 ? (
+                  people[detailModal].history.map((h, i) => (
+                    <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: h.type === 'positivo' ? '#4ade80' : '#ff4d4d', opacity: 0.8 }} />
+                  ))
+                ) : ( <p style={{ fontSize: '0.7rem', opacity: 0.3 }}>Sin registros</p> )}
+              </div>
+              <button onClick={() => { if(confirm("¿Eliminar?")) { setPeople(people.filter((_, i) => i !== detailModal)); setDetailModal(null); } }} style={{ background: 'none', border: 'none', color: '#ff4d4d', fontSize: '0.6rem', marginTop: '15px', cursor: 'pointer' }}>ELIMINAR</button>
+              <button onClick={() => setDetailModal(null)} style={{ width: '100%', padding: '14px', background: 'white', color: 'black', borderRadius: '15px', marginTop: '15px', fontWeight: 600, border: 'none' }}>Cerrar</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {modal && (
+          <div className="modal-overlay" style={{ zIndex: 110 }}>
+            <motion.div initial={{ y: 30 }} animate={{ y: 0 }} className="glass-card" style={{ maxWidth: '340px', background: '#0a0a0c' }}>
+              <p style={{ textAlign: 'center', fontSize: '0.7rem', opacity: 0.5, marginBottom: '15px' }}>REGISTRO: {people[modal.idx].name}</p>
+              <div style={{ marginBottom: '15px' }}>
+                {DATA[modal.type].emociones.map(e => (
+                  <button key={e} onClick={() => setTemp({...temp, emocion: e})} className={`tag-button ${temp.emocion === e ? 'selected' : ''}`}>{e}</button>
+                ))}
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                {DATA[modal.type].habitos.map(h => (
+                  <button key={h} onClick={() => setTemp({...temp, habito: h})} className={`tag-button ${temp.habito === h ? 'selected' : ''}`}>{h}</button>
+                ))}
+              </div>
+              <button disabled={!temp.emocion || !temp.habito} onClick={confirmRegistration} style={btnConfirm}>REGISTRAR</button>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'white', opacity: 0.3, width: '100%', marginTop: '10px' }}>Cancelar</button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <div className="glass-card" style={{ marginTop: '10px', padding: '10px 15px', display: 'flex', gap: '10px' }}>
+        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nuevo vínculo..." style={{ background: 'transparent', border: 'none', color: 'white', flex: 1, outline: 'none', fontSize: '0.75rem' }} />
+        <button onClick={() => { if(newName) { setPeople([...people, {name: newName, history: []}]); setNewName(''); } }} style={{ background: 'white', color: 'black', border: 'none', borderRadius: '10px', padding: '5px 12px', fontWeight: 600, fontSize: '0.65rem' }}>ADD</button>
+      </div>
+    </div>
+  );
+}
+
+const btnSimsNeg = { background: 'rgba(255, 77, 77, 0.1)', border: 'none', color: '#ff4d4d', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
+const btnSimsPos = { background: 'rgba(74, 222, 128, 0.1)', border: 'none', color: '#4ade80', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
+const btnConfirm = { width: '100%', padding: '16px', borderRadius: '18px', background: 'white', color: 'black', fontWeight: 600, border: 'none' };

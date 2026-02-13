@@ -1,0 +1,17 @@
+{
+  "short_name": "Interactions",
+  "name": "Interactions Tracker",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#070708",
+  "background_color": "#070708"
+}
