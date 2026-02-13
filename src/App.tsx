@@ -4,8 +4,14 @@ import { db } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const DATA = {
-  negativo: { emociones: ['Frustrada', 'Triste', 'Enojada', 'Ansiosa', 'Sola', 'Cansada'], habitos: ['Comida compulsiva', 'Gasto innecesario', 'Aislamiento', 'Scroll infinito', 'Procrastinar'] },
-  positivo: { emociones: ['Paz', 'Energía', 'Motivación', 'Amada', 'Tranquila', 'Inspirada'], habitos: ['Hice ejercicio', 'Comí sano', 'Avancé en mis proyectos', 'Medité', 'Dormí bien'] }
+  negativo: { 
+    emociones: ['Frustrada', 'Triste', 'Enojada', 'Ansiosa', 'Sola', 'Cansada'], 
+    habitos: ['Comida compulsiva', 'Gasto innecesario', 'Aislamiento', 'Scroll infinito', 'Procrastinar'] 
+  },
+  positivo: { 
+    emociones: ['Paz', 'Energía', 'Motivación', 'Amada', 'Tranquila', 'Inspirada'], 
+    habitos: ['Hice ejercicio', 'Comí sano', 'Avancé en mis proyectos', 'Medité', 'Dormí bien'] 
+  }
 };
 
 export default function App() {
@@ -16,6 +22,7 @@ export default function App() {
   const [temp, setTemp] = useState({ emocion: '', habito: '' });
   const [newName, setNewName] = useState('');
 
+  // Autosave a Firebase cuando hay cambios significativos
   useEffect(() => {
     if (people.length === 0) return;
     const timer = setTimeout(async () => {
@@ -33,27 +40,39 @@ export default function App() {
   const confirmRegistration = () => {
     if (modal !== null && temp.emocion && temp.habito) {
       const up = [...people];
-      up[modal.idx].history.push({ type: modal.type, ...temp, timestamp: new Date().toISOString() });
+      up[modal.idx].history.push({ 
+        type: modal.type, 
+        ...temp, 
+        timestamp: new Date().toISOString() 
+      });
       setPeople(up);
+      // Impacto en la estabilidad
       setControl(p => modal.type === 'negativo' ? Math.max(0, p - 8) : Math.min(100, p + 4));
-      setModal(null); setTemp({ emocion: '', habito: '' });
+      setModal(null); 
+      setTemp({ emocion: '', habito: '' });
     }
   };
 
   return (
     <div className="app-container">
-      <h1 className="main-title">Interactions</h1>
+      <h1 className="main-title">INTERACTIONS</h1>
 
+      {/* Barra de Estabilidad Semáforo */}
       <div className="stability-box">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.65rem', fontWeight: 400, opacity: 0.5, letterSpacing: '1px' }}>ESTABILIDAD</span>
           <span style={{ fontSize: '1.2rem', fontWeight: 300 }}>{control}%</span>
         </div>
         <div className="bar-track">
-          <motion.div className="bar-fill" animate={{ width: `${control}%` }} transition={{ type: 'spring', stiffness: 45 }} />
+          <motion.div 
+            className="bar-fill" 
+            animate={{ width: `${control}%` }} 
+            transition={{ type: 'spring', stiffness: 45, damping: 12 }} 
+          />
         </div>
       </div>
 
+      {/* Lista de Vínculos */}
       <div style={{ display: 'grid', gap: '6px' }}>
         {people.map((person, idx) => (
           <div key={idx} className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 15px' }}>
@@ -69,6 +88,7 @@ export default function App() {
         ))}
       </div>
 
+      {/* Modal de Mapa Detallado con opción de Eliminar */}
       <AnimatePresence>
         {detailModal !== null && (
           <div className="modal-overlay">
@@ -81,38 +101,84 @@ export default function App() {
                   ))
                 ) : ( <p style={{ fontSize: '0.7rem', opacity: 0.3 }}>Sin registros</p> )}
               </div>
-              <button onClick={() => { if(confirm("¿Eliminar?")) { setPeople(people.filter((_, i) => i !== detailModal)); setDetailModal(null); } }} style={{ background: 'none', border: 'none', color: '#ff4d4d', fontSize: '0.6rem', marginTop: '15px', cursor: 'pointer' }}>ELIMINAR</button>
-              <button onClick={() => setDetailModal(null)} style={{ width: '100%', padding: '14px', background: 'white', color: 'black', borderRadius: '15px', marginTop: '15px', fontWeight: 600, border: 'none' }}>Cerrar</button>
+              <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <button 
+                  onClick={() => { if(window.confirm(`¿Eliminar a ${people[detailModal].name}?`)) { setPeople(people.filter((_, i) => i !== detailModal)); setDetailModal(null); } }}
+                  style={{ background: 'none', border: 'none', color: '#ff4d4d', fontSize: '0.65rem', cursor: 'pointer', opacity: 0.6 }}
+                >
+                  ELIMINAR VÍNCULO
+                </button>
+                <button onClick={() => setDetailModal(null)} style={btnConfirm}>Cerrar</button>
+              </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
+      {/* Modal de Registro de Emoción y Hábito */}
       <AnimatePresence>
         {modal && (
           <div className="modal-overlay" style={{ zIndex: 110 }}>
             <motion.div initial={{ y: 30 }} animate={{ y: 0 }} className="glass-card" style={{ maxWidth: '340px', background: '#0a0a0c' }}>
               <p style={{ textAlign: 'center', fontSize: '0.7rem', opacity: 0.5, marginBottom: '15px' }}>REGISTRO: {people[modal.idx].name}</p>
+              
               <div style={{ marginBottom: '15px' }}>
-                {DATA[modal.type].emociones.map(e => (
-                  <button key={e} onClick={() => setTemp({...temp, emocion: e})} className={`tag-button ${temp.emocion === e ? 'selected' : ''}`}>{e}</button>
-                ))}
+                <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '8px' }}>SENTIMIENTO</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {DATA[modal.type].emociones.map(e => (
+                    <button 
+                      key={e} 
+                      onClick={() => setTemp({...temp, emocion: e})} 
+                      className={`tag-button ${temp.emocion === e ? 'selected' : ''}`}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
               </div>
+
               <div style={{ marginBottom: '20px' }}>
-                {DATA[modal.type].habitos.map(h => (
-                  <button key={h} onClick={() => setTemp({...temp, habito: h})} className={`tag-button ${temp.habito === h ? 'selected' : ''}`}>{h}</button>
-                ))}
+                <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '8px' }}>HÁBITO ASOCIADO</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {DATA[modal.type].habitos.map(h => (
+                    <button 
+                      key={h} 
+                      onClick={() => setTemp({...temp, habito: h})} 
+                      className={`tag-button ${temp.habito === h ? 'selected' : ''}`}
+                    >
+                      {h}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <button disabled={!temp.emocion || !temp.habito} onClick={confirmRegistration} style={btnConfirm}>REGISTRAR</button>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'white', opacity: 0.3, width: '100%', marginTop: '10px' }}>Cancelar</button>
+
+              <button 
+                disabled={!temp.emocion || !temp.habito} 
+                onClick={confirmRegistration} 
+                style={{ ...btnConfirm, opacity: (!temp.emocion || !temp.habito) ? 0.3 : 1 }}
+              >
+                REGISTRAR
+              </button>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'white', opacity: 0.3, width: '100%', marginTop: '10px', fontSize: '0.7rem' }}>Cancelar</button>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
 
-      <div className="glass-card" style={{ marginTop: '10px', padding: '10px 15px', display: 'flex', gap: '10px' }}>
-        <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nuevo vínculo..." style={{ background: 'transparent', border: 'none', color: 'white', flex: 1, outline: 'none', fontSize: '0.75rem' }} />
-        <button onClick={() => { if(newName) { setPeople([...people, {name: newName, history: []}]); setNewName(''); } }} style={{ background: 'white', color: 'black', border: 'none', borderRadius: '10px', padding: '5px 12px', fontWeight: 600, fontSize: '0.65rem' }}>ADD</button>
+      {/* Agregar Nuevo Vínculo */}
+      <div className="glass-card" style={{ marginTop: 'auto', padding: '10px 15px', display: 'flex', gap: '10px' }}>
+        <input 
+          value={newName} 
+          onChange={(e) => setNewName(e.target.value)} 
+          placeholder="Nuevo vínculo..." 
+          style={{ background: 'transparent', border: 'none', color: 'white', flex: 1, outline: 'none', fontSize: '0.75rem' }} 
+        />
+        <button 
+          onClick={() => { if(newName) { setPeople([...people, {name: newName, history: []}]); setNewName(''); } }} 
+          style={{ background: 'white', color: 'black', border: 'none', borderRadius: '10px', padding: '5px 12px', fontWeight: 600, fontSize: '0.65rem' }}
+        >
+          ADD
+        </button>
       </div>
     </div>
   );
@@ -120,4 +186,4 @@ export default function App() {
 
 const btnSimsNeg = { background: 'rgba(255, 77, 77, 0.1)', border: 'none', color: '#ff4d4d', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
 const btnSimsPos = { background: 'rgba(74, 222, 128, 0.1)', border: 'none', color: '#4ade80', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
-const btnConfirm = { width: '100%', padding: '16px', borderRadius: '18px', background: 'white', color: 'black', fontWeight: 600, border: 'none' };
+const btnConfirm = { width: '100%', padding: '16px', borderRadius: '18px', background: 'white', color: 'black', fontWeight: 600, border: 'none', cursor: 'pointer' };
