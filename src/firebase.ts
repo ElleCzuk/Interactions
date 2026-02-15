@@ -1,14 +1,14 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// Reemplazá estos datos con los de tu consola de Firebase
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "classcode-tracker.firebaseapp.com",
-  projectId: "classcode-tracker",
-  storageBucket: "classcode-tracker.appspot.com",
-  messagingSenderId: "TU_SENDER_ID",
-  appId: "TU_APP_ID"
+  apiKey: "AIzaSyBvgP3faCITiZTTTOKQodyg3crItsf-maY", // Sacada de tu config
+  authDomain: "interactions-71fba.firebaseapp.com",
+  projectId: "interactions-71fba", // Tu ID real
+  storageBucket: "interactions-71fba.firebasestorage.app",
+  messagingSenderId: "661620450070", // Tu número de proyecto
+  appId: "1:661620450070:web:0f36f5a2adcd58f6c8a637", // Tu App ID
+  measurementId: "G-R4WPG3BQ1Q"
 };
 
 const app = initializeApp(firebaseConfig);

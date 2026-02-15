@@ -3,6 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { db } from './firebase'; 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
+// Definimos la estructura para que TypeScript no tire errores en Vercel
+interface HistoryEntry {
+  type: 'positivo' | 'negativo';
+  emocion: string;
+  habito: string;
+  timestamp: string;
+}
+
+interface Person {
+  name: string;
+  history: HistoryEntry[];
+}
+
 const DATA = {
   negativo: { 
     emociones: ['Frustrada', 'Triste', 'Enojada', 'Ansiosa', 'Sola', 'Cansada'], 
@@ -15,14 +28,14 @@ const DATA = {
 };
 
 export default function App() {
-  const [people, setPeople] = useState([]); 
+  const [people, setPeople] = useState<Person[]>([]); 
   const [control, setControl] = useState(100);
   const [modal, setModal] = useState<{idx: number, type: 'positivo' | 'negativo'} | null>(null);
   const [detailModal, setDetailModal] = useState<number | null>(null);
   const [temp, setTemp] = useState({ emocion: '', habito: '' });
   const [newName, setNewName] = useState('');
 
-  // Autosave a Firebase cuando hay cambios significativos
+  // Autosave a Firebase
   useEffect(() => {
     if (people.length === 0) return;
     const timer = setTimeout(async () => {
@@ -46,7 +59,6 @@ export default function App() {
         timestamp: new Date().toISOString() 
       });
       setPeople(up);
-      // Impacto en la estabilidad
       setControl(p => modal.type === 'negativo' ? Math.max(0, p - 8) : Math.min(100, p + 4));
       setModal(null); 
       setTemp({ emocion: '', habito: '' });
@@ -57,7 +69,6 @@ export default function App() {
     <div className="app-container">
       <h1 className="main-title">INTERACTIONS</h1>
 
-      {/* Barra de Estabilidad Semáforo */}
       <div className="stability-box">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '0.65rem', fontWeight: 400, opacity: 0.5, letterSpacing: '1px' }}>ESTABILIDAD</span>
@@ -72,7 +83,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Lista de Vínculos */}
       <div style={{ display: 'grid', gap: '6px' }}>
         {people.map((person, idx) => (
           <div key={idx} className="glass-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 15px' }}>
@@ -88,13 +98,12 @@ export default function App() {
         ))}
       </div>
 
-      {/* Modal de Mapa Detallado con opción de Eliminar */}
       <AnimatePresence>
         {detailModal !== null && (
           <div className="modal-overlay">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card" style={{ maxWidth: '350px', background: '#070708', width: '90%' }}>
               <h2 style={{ fontSize: '1.1rem', marginBottom: '5px', fontWeight: 300 }}>{people[detailModal].name}</h2>
-              <div className="history-grid">
+              <div className="history-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '10px' }}>
                 {people[detailModal].history.length > 0 ? (
                   people[detailModal].history.map((h, i) => (
                     <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: h.type === 'positivo' ? '#4ade80' : '#ff4d4d', opacity: 0.8 }} />
@@ -115,7 +124,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Modal de Registro de Emoción y Hábito */}
       <AnimatePresence>
         {modal && (
           <div className="modal-overlay" style={{ zIndex: 110 }}>
@@ -126,13 +134,7 @@ export default function App() {
                 <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '8px' }}>SENTIMIENTO</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                   {DATA[modal.type].emociones.map(e => (
-                    <button 
-                      key={e} 
-                      onClick={() => setTemp({...temp, emocion: e})} 
-                      className={`tag-button ${temp.emocion === e ? 'selected' : ''}`}
-                    >
-                      {e}
-                    </button>
+                    <button key={e} onClick={() => setTemp({...temp, emocion: e})} className={`tag-button ${temp.emocion === e ? 'selected' : ''}`}>{e}</button>
                   ))}
                 </div>
               </div>
@@ -141,13 +143,7 @@ export default function App() {
                 <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '8px' }}>HÁBITO ASOCIADO</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
                   {DATA[modal.type].habitos.map(h => (
-                    <button 
-                      key={h} 
-                      onClick={() => setTemp({...temp, habito: h})} 
-                      className={`tag-button ${temp.habito === h ? 'selected' : ''}`}
-                    >
-                      {h}
-                    </button>
+                    <button key={h} onClick={() => setTemp({...temp, habito: h})} className={`tag-button ${temp.habito === h ? 'selected' : ''}`}>{h}</button>
                   ))}
                 </div>
               </div>
@@ -165,7 +161,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Agregar Nuevo Vínculo */}
       <div className="glass-card" style={{ marginTop: 'auto', padding: '10px 15px', display: 'flex', gap: '10px' }}>
         <input 
           value={newName} 
@@ -184,6 +179,6 @@ export default function App() {
   );
 }
 
-const btnSimsNeg = { background: 'rgba(255, 77, 77, 0.1)', border: 'none', color: '#ff4d4d', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
-const btnSimsPos = { background: 'rgba(74, 222, 128, 0.1)', border: 'none', color: '#4ade80', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
-const btnConfirm = { width: '100%', padding: '16px', borderRadius: '18px', background: 'white', color: 'black', fontWeight: 600, border: 'none', cursor: 'pointer' };
+const btnSimsNeg: React.CSSProperties = { background: 'rgba(255, 77, 77, 0.1)', border: 'none', color: '#ff4d4d', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
+const btnSimsPos: React.CSSProperties = { background: 'rgba(74, 222, 128, 0.1)', border: 'none', color: '#4ade80', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
+const btnConfirm: React.CSSProperties = { width: '100%', padding: '16px', borderRadius: '18px', background: 'white', color: 'black', fontWeight: 600, border: 'none', cursor: 'pointer' };
