@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from './firebase'; 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
-// Definimos la estructura para que TypeScript no tire errores en Vercel
+// Interfaces para TypeScript
 interface HistoryEntry {
   type: 'positivo' | 'negativo';
   emocion: string;
@@ -34,10 +34,33 @@ export default function App() {
   const [detailModal, setDetailModal] = useState<number | null>(null);
   const [temp, setTemp] = useState({ emocion: '', habito: '' });
   const [newName, setNewName] = useState('');
+  const [isLoaded, setIsLoaded] = useState(false); // Para evitar que el autosave pise datos vacíos al inicio
 
-  // Autosave a Firebase
+  // 1. Cargar último estado desde Firebase al iniciar
   useEffect(() => {
-    if (people.length === 0) return;
+    const fetchData = async () => {
+      try {
+        const q = query(collection(db, "registros_continuos"), orderBy("fecha", "desc"), limit(1));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+          const lastDoc = querySnapshot.docs[0].data();
+          setPeople(lastDoc.vinculos || []);
+          setControl(lastDoc.nivelControl ?? 100);
+        }
+      } catch (e) {
+        console.error("Error cargando datos iniciales:", e);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // 2. Autosave a Firebase (solo si ya se cargaron los datos iniciales)
+  useEffect(() => {
+    if (!isLoaded || people.length === 0) return;
+    
     const timer = setTimeout(async () => {
       try {
         await addDoc(collection(db, "registros_continuos"), { 
@@ -45,10 +68,13 @@ export default function App() {
           nivelControl: control, 
           vinculos: people 
         });
-      } catch (e) { console.error("Autosave error", e); }
+      } catch (e) { 
+        console.error("Autosave error", e); 
+      }
     }, 2000);
+    
     return () => clearTimeout(timer);
-  }, [people, control]);
+  }, [people, control, isLoaded]);
 
   const confirmRegistration = () => {
     if (modal !== null && temp.emocion && temp.habito) {
@@ -64,6 +90,22 @@ export default function App() {
       setTemp({ emocion: '', habito: '' });
     }
   };
+
+  const getTagStyle = (isSelected: boolean, type: 'positivo' | 'negativo'): React.CSSProperties => ({
+    padding: '10px 14px',
+    borderRadius: '12px',
+    fontSize: '0.7rem',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+    border: isSelected 
+      ? `1.5px solid ${type === 'positivo' ? '#4ade80' : '#ff4d4d'}` 
+      : '1px solid rgba(255, 255, 255, 0.1)',
+    background: isSelected 
+      ? (type === 'positivo' ? 'rgba(74, 222, 128, 0.2)' : 'rgba(255, 77, 77, 0.2)') 
+      : 'rgba(255, 255, 255, 0.03)',
+    color: isSelected ? 'white' : 'rgba(255, 255, 255, 0.6)',
+    backdropFilter: 'blur(5px)',
+  });
 
   return (
     <div className="app-container">
@@ -101,9 +143,9 @@ export default function App() {
       <AnimatePresence>
         {detailModal !== null && (
           <div className="modal-overlay">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card" style={{ maxWidth: '350px', background: '#070708', width: '90%' }}>
-              <h2 style={{ fontSize: '1.1rem', marginBottom: '5px', fontWeight: 300 }}>{people[detailModal].name}</h2>
-              <div className="history-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '10px' }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-card" style={modalGlassStyle}>
+              <h2 style={{ fontSize: '1.1rem', marginBottom: '15px', fontWeight: 300 }}>{people[detailModal].name}</h2>
+              <div className="history-grid" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '12px' }}>
                 {people[detailModal].history.length > 0 ? (
                   people[detailModal].history.map((h, i) => (
                     <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: h.type === 'positivo' ? '#4ade80' : '#ff4d4d', opacity: 0.8 }} />
@@ -112,7 +154,7 @@ export default function App() {
               </div>
               <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <button 
-                  onClick={() => { if(window.confirm(`¿Eliminar a ${people[detailModal].name}?`)) { setPeople(people.filter((_, i) => i !== detailModal)); setDetailModal(null); } }}
+                  onClick={() => { if(window.confirm(`¿Eliminar vínculo?`)) { setPeople(people.filter((_, i) => i !== detailModal)); setDetailModal(null); } }}
                   style={{ background: 'none', border: 'none', color: '#ff4d4d', fontSize: '0.65rem', cursor: 'pointer', opacity: 0.6 }}
                 >
                   ELIMINAR VÍNCULO
@@ -127,23 +169,23 @@ export default function App() {
       <AnimatePresence>
         {modal && (
           <div className="modal-overlay" style={{ zIndex: 110 }}>
-            <motion.div initial={{ y: 30 }} animate={{ y: 0 }} className="glass-card" style={{ maxWidth: '340px', background: '#0a0a0c' }}>
-              <p style={{ textAlign: 'center', fontSize: '0.7rem', opacity: 0.5, marginBottom: '15px' }}>REGISTRO: {people[modal.idx].name}</p>
+            <motion.div initial={{ y: 30 }} animate={{ y: 0 }} className="glass-card" style={modalGlassStyle}>
+              <p style={{ textAlign: 'center', fontSize: '0.7rem', opacity: 0.5, marginBottom: '20px' }}>REGISTRO: {people[modal.idx].name}</p>
               
-              <div style={{ marginBottom: '15px' }}>
-                <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '8px' }}>SENTIMIENTO</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '10px' }}>SENTIMIENTO</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {DATA[modal.type].emociones.map(e => (
-                    <button key={e} onClick={() => setTemp({...temp, emocion: e})} className={`tag-button ${temp.emocion === e ? 'selected' : ''}`}>{e}</button>
+                    <button key={e} onClick={() => setTemp({...temp, emocion: e})} style={getTagStyle(temp.emocion === e, modal.type)}>{e}</button>
                   ))}
                 </div>
               </div>
 
-              <div style={{ marginBottom: '20px' }}>
-                <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '8px' }}>HÁBITO ASOCIADO</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              <div style={{ marginBottom: '25px' }}>
+                <p style={{ fontSize: '0.6rem', opacity: 0.3, marginBottom: '10px' }}>HÁBITO ASOCIADO</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                   {DATA[modal.type].habitos.map(h => (
-                    <button key={h} onClick={() => setTemp({...temp, habito: h})} className={`tag-button ${temp.habito === h ? 'selected' : ''}`}>{h}</button>
+                    <button key={h} onClick={() => setTemp({...temp, habito: h})} style={getTagStyle(temp.habito === h, modal.type)}>{h}</button>
                   ))}
                 </div>
               </div>
@@ -155,7 +197,7 @@ export default function App() {
               >
                 REGISTRAR
               </button>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'white', opacity: 0.3, width: '100%', marginTop: '10px', fontSize: '0.7rem' }}>Cancelar</button>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', color: 'white', opacity: 0.3, width: '100%', marginTop: '15px', fontSize: '0.7rem' }}>Cancelar</button>
             </motion.div>
           </div>
         )}
@@ -178,6 +220,15 @@ export default function App() {
     </div>
   );
 }
+
+const modalGlassStyle: React.CSSProperties = {
+  maxWidth: '350px',
+  width: '90%',
+  background: 'rgba(15, 15, 18, 0.8)',
+  backdropFilter: 'blur(20px) saturate(180%)',
+  border: '1px solid rgba(255, 255, 255, 0.1)',
+  padding: '25px'
+};
 
 const btnSimsNeg: React.CSSProperties = { background: 'rgba(255, 77, 77, 0.1)', border: 'none', color: '#ff4d4d', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
 const btnSimsPos: React.CSSProperties = { background: 'rgba(74, 222, 128, 0.1)', border: 'none', color: '#4ade80', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem' };
